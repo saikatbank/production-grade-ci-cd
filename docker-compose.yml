@@ -26,6 +26,12 @@ services:
       - .:/app
     ports:
       - "8000:8000"
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:8000/health/live || exit 1" ]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
     environment:
       - POSTGRES_SERVER=db
       - POSTGRES_USER=${POSTGRES_USER:-fastapi_user}
