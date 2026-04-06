@@ -1,0 +1,153 @@
+🚧 Project 1: Production-Grade CI/CD Pipeline for a Backend Service
+1. Problem Statement
+
+You are working at a startup building a backend service that will power a customer-facing application (e.g., task management API).
+
+The company is preparing for its first production release. Your responsibility is to:
+
+Build a reliable, automated CI/CD pipeline
+Ensure every code change is validated before deployment
+Enable safe, repeatable deployments with rollback capability
+Provide basic observability and operational readiness
+
+⚠️ Reality check:
+This system will be touched by multiple developers. Your pipeline must prevent bad code from reaching production.
+
+2. Requirements
+✅ Functional Requirements
+
+You must build:
+
+Application Layer
+Backend service (FastAPI or similar)
+PostgreSQL database
+Health endpoints:
+/health/live
+/health/ready
+CI Pipeline (Triggered on PR + main branch)
+
+Pipeline MUST include:
+
+Code Quality Stage
+Linting (flake8 / ruff)
+Formatting (black)
+Fail pipeline if violated
+Testing Stage
+Unit tests (mandatory)
+Integration tests (DB involved)
+Minimum coverage threshold (you decide — justify it)
+Security Checks
+Dependency vulnerability scan (e.g., Trivy, Snyk, pip-audit)
+Fail on critical vulnerabilities
+Build Stage
+Multi-stage Docker build
+Image must be:
+Small
+Non-root user
+Tagged properly
+Artifact Management
+Push Docker image to registry (Docker Hub or similar)
+Versioning strategy (semantic versioning or commit SHA)
+🚀 CD Pipeline (Triggered after successful CI on main)
+Pull latest image from registry
+Deploy to target environment
+Run DB migrations (safe + idempotent)
+Validate deployment using health checks
+Auto rollback on failure
+🔒 Secrets & Config Management
+No secrets in code
+Use environment variables or secret manager
+Separate configs for:
+dev
+staging
+prod
+📊 Observability
+Structured logging (JSON preferred)
+Basic metrics (Prometheus format)
+Expose /metrics
+Log correlation (request ID)
+🔁 Deployment Strategy
+Must support:
+Rolling update OR
+Blue/Green (preferred if you can simulate)
+Zero/near-zero downtime expected
+3. Non-Functional Requirements (This is where most people fail)
+
+You must define and meet:
+
+Availability Target: e.g., 99.9%
+Deployment Success Rate: > 95%
+Pipeline Duration Target: < 10 minutes
+Rollback Time: < 2 minutes
+Cold Start Time: minimized
+4. System Constraints
+Single VM (e.g., EC2 or similar)
+Docker-based deployment (NO Kubernetes)
+Low traffic (but design should scale later)
+Budget-conscious (no over-engineering)
+5. Architecture Expectations (High-Level Only)
+
+I expect you to think in terms of:
+
+Separation of concerns:
+CI system
+Artifact registry
+Runtime environment
+
+Example flow (you refine this):
+
+Developer → Git Push → CI Pipeline → Build & Test → Docker Registry →
+CD Pipeline → VM Deployment (Docker Compose or similar)
+You should justify:
+Jenkins vs GitHub Actions
+Why your deployment method is safe
+6. Deliverables
+
+You must produce:
+
+Repository Structure
+CI/CD Pipeline Configuration
+Dockerfile (production-grade)
+Docker Compose (for local + staging)
+Deployment scripts
+Rollback mechanism
+README with architecture + decisions
+Demo flow (what happens on commit?)
+7. Evaluation Criteria (I will be strict here)
+
+I will judge you on:
+
+🧠 Engineering Thinking
+Do you understand failure scenarios?
+Do you design for rollback BEFORE deployment?
+🔐 Security
+Are secrets handled properly?
+Are images hardened?
+⚙️ Reliability
+What happens if deployment fails halfway?
+What if DB migration fails?
+📦 Maintainability
+Can another engineer understand your system in 10 minutes?
+📉 Operational Readiness
+Can I debug issues using your logs/metrics?
+🧪 Before You Start — My Questions for You
+
+Answer these before you design anything:
+
+CI/CD Tool Choice
+Jenkins or GitHub Actions?
+Why? (Don’t say “easy to use”)
+Deployment Strategy
+How will you achieve zero downtime on a single VM?
+Database Migration
+What happens if a migration fails after deployment starts?
+Rollback Plan
+What exactly will you roll back?
+Code? Container? Database?
+Versioning Strategy
+How will you tag Docker images?
+Secrets Management
+Where will secrets live in:
+local
+CI
+production VM
