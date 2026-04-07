@@ -46,16 +46,28 @@ Because tests operate against a transient in-memory SQLite database, they run wi
 
 ### 4. Code Quality (Linting & Formatting)
 
-We use `black` for code formatting and `ruff` for fast linting. These tools are included in `requirements-dev.txt` and are designed to fail if the code does not meet quality standards, making them easy to integrate into any CI/CD pipeline (Jenkins, GitHub Actions, GitLab CI).
+We use `black` for code formatting and `ruff` for fast linting. These tools are included in `requirements-dev.txt`. We enforce code quality at three different stages of the development lifecycle:
 
-To run formatting and linting checks interactively during development:
+#### 1. `.pre-commit` Hooks (The Gatekeeper)
+Automated checks that run locally every time you type `git commit`. They prevent badly formatted or lint-failing code from entering your git history by automatically fixing staged files and aborting the commit if issues were found.
+
+To install the git hook scripts:
+```bash
+pre-commit install
+```
+
+#### 2. Local Fixer Script (`scripts/format.sh`)
+An eager, on-demand script used during development. It runs `black` and `ruff --fix` across your entire `app/` and `tests/` directories to instantly auto-format and clean up the whole project.
+
 ```bash
 # Auto-format code and fix linting errors
 bash scripts/format.sh
 ```
 
-To run formatting and linting purely as CI tests (this will fail the build if issues are found):
+#### 3. CI/CD Enforcer Script (`scripts/lint.sh`)
+A strict pass/fail script used in your automated CI/CD pipelines. It runs `black --check` and `ruff check` in a read-only mode. If any files are unformatted or contain lint violations, the script exits with an error, failing the CI/CD pipeline build.
+
 ```bash
-# Verify formatting and linting without modifying files
+# Verify formatting and linting without modifying files (fails if issues are found)
 bash scripts/lint.sh
 ```
