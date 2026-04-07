@@ -2,15 +2,15 @@ import os
 
 os.environ["TESTING"] = "1"
 
-import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
+import pytest  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+from sqlalchemy import create_engine  # noqa: E402
+from sqlalchemy.orm import sessionmaker  # noqa: E402
+from sqlalchemy.pool import StaticPool  # noqa: E402
 
-from app.main import app
-from app.db.database import get_db
-from app.db.models import Base
+from app.main import app  # noqa: E402
+from app.db.database import get_db  # noqa: E402
+from app.db.models import Base  # noqa: E402
 
 # Create SQLite in-memory database configuration for extreme speed in CI
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"

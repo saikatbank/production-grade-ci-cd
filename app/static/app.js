@@ -8,7 +8,7 @@ async function fetchItems() {
     try {
         const response = await fetch(`${API_BASE}/items/`);
         const items = await response.json();
-        
+
         list.innerHTML = ''; // Clear loading
         if(items.length === 0) {
             list.innerHTML = '<p style="color: var(--text-muted)">No items found. Create one above!</p>';
@@ -36,11 +36,11 @@ async function fetchItems() {
 // Handle form submission
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    
+
     const title = document.getElementById('title').value;
     const desc = document.getElementById('description').value;
     const isActive = document.getElementById('is_active').checked;
-    
+
     const submitBtn = form.querySelector('button');
     submitBtn.textContent = 'Adding...';
     submitBtn.disabled = true;
@@ -55,7 +55,7 @@ form.addEventListener('submit', async (e) => {
                 is_active: isActive
             })
         });
-        
+
         // Reset and reload
         form.reset();
         await fetchItems();
