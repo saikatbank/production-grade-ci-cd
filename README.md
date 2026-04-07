@@ -1,6 +1,6 @@
 # FastAPI Production Starter
 
-A production-grade, highly modular FastAPI application structured for scalability and simplicity. This repository includes an integrated PostgreSQL database (orchestrated via Docker Compose) and a clean, dynamic Vanilla JS dashboard that serves directly from the backend. 
+A production-grade, highly modular FastAPI application structured for scalability and simplicity. This repository includes an integrated PostgreSQL database (orchestrated via Docker Compose) and a clean, dynamic Vanilla JS dashboard that serves directly from the backend.
 
 ## Features
 - **FastAPI Backend**: Organized routing, dependencies, and DB sessions.
