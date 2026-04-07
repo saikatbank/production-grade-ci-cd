@@ -43,3 +43,19 @@ Because tests operate against a transient in-memory SQLite database, they run wi
    ```bash
    pytest tests/ -v
    ```
+
+### 4. Code Quality (Linting & Formatting)
+
+We use `black` for code formatting and `ruff` for fast linting. These tools are included in `requirements-dev.txt` and are designed to fail if the code does not meet quality standards, making them easy to integrate into any CI/CD pipeline (Jenkins, GitHub Actions, GitLab CI).
+
+To run formatting and linting checks interactively during development:
+```bash
+# Auto-format code and fix linting errors
+bash scripts/format.sh
+```
+
+To run formatting and linting purely as CI tests (this will fail the build if issues are found):
+```bash
+# Verify formatting and linting without modifying files
+bash scripts/lint.sh
+```
