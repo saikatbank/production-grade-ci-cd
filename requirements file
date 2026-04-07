@@ -31,6 +31,7 @@ Pipeline MUST include:
 Code Quality Stage
 Linting (flake8 / ruff)
 Formatting (black)
+Pre-commit hooks (optional)
 Fail pipeline if violated
 Testing Stage
 Unit tests (mandatory)
