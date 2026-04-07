@@ -1,4 +1,5 @@
 import os
+
 os.environ["TESTING"] = "1"
 
 import pytest
@@ -16,10 +17,11 @@ SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False}, # needed for sqlite and FastAPI
-    poolclass=StaticPool, # keeps the in-memory db intact across sessions
+    connect_args={"check_same_thread": False},  # needed for sqlite and FastAPI
+    poolclass=StaticPool,  # keeps the in-memory db intact across sessions
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
 
 @pytest.fixture(scope="session")
 def setup_database():
@@ -28,6 +30,7 @@ def setup_database():
     yield
     # Tear down tables
     Base.metadata.drop_all(bind=engine)
+
 
 @pytest.fixture(scope="function")
 def db_session(setup_database):
@@ -42,6 +45,7 @@ def db_session(setup_database):
     finally:
         session.close()
 
+
 @pytest.fixture(scope="function")
 def client(db_session):
     # Dependency override for testing
@@ -49,11 +53,11 @@ def client(db_session):
         try:
             yield db_session
         finally:
-            pass # Session closed by db_session fixture
+            pass  # Session closed by db_session fixture
 
     app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as test_client:
         yield test_client
-    
+
     # Clean up override so it doesn't leak
     app.dependency_overrides.clear()

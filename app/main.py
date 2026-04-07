@@ -26,6 +26,7 @@ os.makedirs(STATIC_DIR, exist_ok=True)
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
+
 @app.get("/")
 def read_root():
     return FileResponse(os.path.join(STATIC_DIR, "index.html"))
