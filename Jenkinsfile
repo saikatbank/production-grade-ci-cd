@@ -22,13 +22,19 @@ pipeline {
         }
 
         stage('Lint & Format') {
+            agent {
+                docker {
+                    image 'python:3.11-slim'
+                    args '-u root:root'
+                }
+            }
             steps {
                 echo "Running Code Linting and Formatting..."
                 sh '''
                     # Setup virtual environment and install dev dependencies
                     python3 -m venv venv
                     . venv/bin/activate
-                    pip install -r requirements-dev.txt
+                    pip install black ruff
 
                     # Run the linting script which executes black and ruff
                     bash scripts/lint.sh
@@ -37,11 +43,18 @@ pipeline {
         }
 
         stage('Unit Tests') {
+            agent {
+                docker {
+                    image 'python:3.11-slim'
+                    args '-u root:root'
+                }
+            }
             steps {
                 echo "Running Unit Tests..."
                 sh '''
                     . venv/bin/activate
                     # Run tests and output JUnit XML report
+                    pip install pytest
                     pytest tests/ -v --junitxml=test-results.xml
                 '''
             }
