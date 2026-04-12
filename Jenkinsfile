@@ -5,9 +5,10 @@ pipeline {
         // Define repository/image details here
         // As we are using docker hub, so kept DOCKER_REGISTRY=docker.io
         DOCKER_REGISTRY = 'docker.io' // Replace with your actual registry URL (e.g., xxx.dkr.ecr.region.amazonaws.com)
+        DOCKER_NAMESPACE = 'saikatbank'
         IMAGE_NAME = 'fastapi-app'
         IMAGE_TAG = "${env.BUILD_NUMBER}"
-        FULL_IMAGE_NAME = "${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
+        FULL_IMAGE_NAME = "${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/${IMAGE_NAME}:${IMAGE_TAG}"
 
         // Uncomment and replace with your Jenkins credentials ID for the registry
         REGISTRY_CREDENTIALS_ID = 'docker-registry-creds'
@@ -77,7 +78,7 @@ pipeline {
                 echo "Building Docker image: ${FULL_IMAGE_NAME}"
                 sh "docker build -t ${FULL_IMAGE_NAME} ."
                 // Best practice: tag it as 'latest' as well locally in the build
-                sh "docker tag ${FULL_IMAGE_NAME} ${DOCKER_REGISTRY}/${IMAGE_NAME}:latest"
+                sh "docker tag ${FULL_IMAGE_NAME} ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/${IMAGE_NAME}:latest"
             }
         }
 
@@ -91,9 +92,10 @@ pipeline {
                  */
 
                 withCredentials([usernamePassword(credentialsId: env.REGISTRY_CREDENTIALS_ID, passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')]) {
-                    sh "echo $DOCKER_PASS | docker login ${DOCKER_REGISTRY} -u $DOCKER_USER --password-stdin"
+                    // Use single quotes for the login step to securely evaluate variables inside the shell
+                    sh 'echo "$DOCKER_PASS" | docker login "$DOCKER_REGISTRY" -u "$DOCKER_USER" --password-stdin'
                     sh "docker push ${FULL_IMAGE_NAME}"
-                    sh "docker push ${DOCKER_REGISTRY}/${IMAGE_NAME}:latest"
+                    sh "docker push ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/${IMAGE_NAME}:latest"
                     sh "docker logout ${DOCKER_REGISTRY}"
                 }
 
@@ -107,7 +109,7 @@ pipeline {
         always {
             // Clean up the Docker image locally to save space on the Jenkins worker
             sh "docker rmi ${FULL_IMAGE_NAME} || true"
-            sh "docker rmi ${DOCKER_REGISTRY}/${IMAGE_NAME}:latest || true"
+            sh "docker rmi ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/${IMAGE_NAME}:latest || true"
 
             // Clean up the workspace to prevent residue for next builds
             cleanWs()
