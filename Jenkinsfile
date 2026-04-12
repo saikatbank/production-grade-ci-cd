@@ -49,6 +49,12 @@ pipeline {
                     args '-u root:root'
                 }
             }
+            environment {
+                POSTGRES_SERVER = 'localhost'
+                POSTGRES_USER = 'test_user'
+                POSTGRES_PASSWORD = 'test_password'
+                POSTGRES_DB = 'test_db'
+            }
             steps {
                 echo "Running Unit Tests..."
                 sh '''
