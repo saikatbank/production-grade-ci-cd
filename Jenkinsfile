@@ -54,7 +54,7 @@ pipeline {
                 sh '''
                     . venv/bin/activate
                     # Run tests and output JUnit XML report
-                    pip install pytest
+                    pip install -r requirements-dev.txt
                     pytest tests/ -v --junitxml=test-results.xml
                 '''
             }
