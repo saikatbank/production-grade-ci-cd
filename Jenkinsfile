@@ -94,9 +94,9 @@ pipeline {
                 withCredentials([usernamePassword(credentialsId: env.REGISTRY_CREDENTIALS_ID, passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')]) {
                     // Use single quotes for the login step to securely evaluate variables inside the shell
                     sh 'echo "$DOCKER_PASS" | docker login "$DOCKER_REGISTRY" -u "$DOCKER_USER" --password-stdin'
-                    sh "docker push ${FULL_IMAGE_NAME}"
-                    sh "docker push ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/${IMAGE_NAME}:latest"
-                    sh "docker logout ${DOCKER_REGISTRY}"
+                    sh 'docker push "$FULL_IMAGE_NAME"'
+                    sh 'docker push "$DOCKER_REGISTRY/$DOCKER_NAMESPACE/$IMAGE_NAME:latest"'
+                    sh 'docker logout "$DOCKER_REGISTRY"'
                 }
 
                 // Placeholder since we are skipping the actual push without real credentials
