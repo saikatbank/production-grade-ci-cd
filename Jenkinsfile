@@ -17,6 +17,7 @@ pipeline {
 
         // Jenkins Credentials IDs
         REGISTRY_CREDENTIALS_ID = 'docker-registry-creds'
+        GITHUB_CREDENTIALS_ID = 'github-token' // Replace with your Jenkins credential ID for GitHub PAT
 
         // EC2 Deployment Variables
         EC2_IP = '54.175.5.180'
@@ -53,6 +54,66 @@ pipeline {
             }
         }
 
+        stage('Lint & Format') {
+            when {
+                expression { return !params.ROLLBACK_VERSION?.trim() }
+            }
+            agent {
+                docker {
+                    image 'python:3.11-slim'
+                    args '-u root:root'
+                }
+            }
+            steps {
+                echo "Running Code Linting and Formatting..."
+                sh '''
+                    # Setup virtual environment and install dev dependencies
+                    python3 -m venv venv
+                    . venv/bin/activate
+                    pip install black ruff
+
+                    # Run the linting script which executes black and ruff
+                    bash scripts/lint.sh
+                '''
+            }
+        }
+
+        stage('Unit Tests') {
+            when {
+                expression { return !params.ROLLBACK_VERSION?.trim() }
+            }
+            agent {
+                docker {
+                    image 'python:3.11-slim'
+                    args '-u root:root'
+                }
+            }
+            environment {
+                POSTGRES_SERVER = 'localhost'
+                POSTGRES_USER = 'test_user'
+                POSTGRES_PASSWORD = 'test_password'
+                POSTGRES_DB = 'test_db'
+            }
+            steps {
+                echo "Running Unit Tests..."
+                sh '''
+                    . venv/bin/activate
+                    # Run tests and output JUnit XML report
+                    pip install -r requirements-dev.txt
+                    pytest tests/ -v --junitxml=test-results.xml
+                '''
+            }
+            post {
+                always {
+                    // Archive the test results regardless of build success or failure
+                    junit 'test-results.xml'
+                }
+            }
+        }
+
+        // ──────────────────────────────────────────────
+        //  VERSION BUMP — Only after quality gates pass
+        // ──────────────────────────────────────────────
         stage('Version Bump') {
             when {
                 expression { return !params.ROLLBACK_VERSION?.trim() }
@@ -118,67 +179,13 @@ pipeline {
                     // Create an annotated tag
                     sh "git tag -a v${newVersion} -m 'Release v${newVersion} [${bumpType}]'"
 
-                    // Push the tag back to GitHub
-                    sh "git push origin v${newVersion}"
+                    // Push the tag back to GitHub using PAT
+                    // Note: Even public repos require authentication for write operations (push)
+                    withCredentials([usernamePassword(credentialsId: env.GITHUB_CREDENTIALS_ID, usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS')]) {
+                        sh 'git push https://${GIT_USER}:${GIT_PASS}@github.com/${GIT_USER}/production-grade-ci-cd.git v' + newVersion
+                    }
 
                     echo "✅ Tagged and pushed v${newVersion} to GitHub"
-                }
-            }
-        }
-
-        stage('Lint & Format') {
-            when {
-                expression { return !params.ROLLBACK_VERSION?.trim() }
-            }
-            agent {
-                docker {
-                    image 'python:3.11-slim'
-                    args '-u root:root'
-                }
-            }
-            steps {
-                echo "Running Code Linting and Formatting..."
-                sh '''
-                    # Setup virtual environment and install dev dependencies
-                    python3 -m venv venv
-                    . venv/bin/activate
-                    pip install black ruff
-
-                    # Run the linting script which executes black and ruff
-                    bash scripts/lint.sh
-                '''
-            }
-        }
-
-        stage('Unit Tests') {
-            when {
-                expression { return !params.ROLLBACK_VERSION?.trim() }
-            }
-            agent {
-                docker {
-                    image 'python:3.11-slim'
-                    args '-u root:root'
-                }
-            }
-            environment {
-                POSTGRES_SERVER = 'localhost'
-                POSTGRES_USER = 'test_user'
-                POSTGRES_PASSWORD = 'test_password'
-                POSTGRES_DB = 'test_db'
-            }
-            steps {
-                echo "Running Unit Tests..."
-                sh '''
-                    . venv/bin/activate
-                    # Run tests and output JUnit XML report
-                    pip install -r requirements-dev.txt
-                    pytest tests/ -v --junitxml=test-results.xml
-                '''
-            }
-            post {
-                always {
-                    // Archive the test results regardless of build success or failure
-                    junit 'test-results.xml'
                 }
             }
         }
