@@ -123,6 +123,22 @@ pipeline {
                     // Fetch all existing tags from origin
                     sh 'git fetch --tags'
 
+                    // Check if the current commit (HEAD) already has a version tag
+                    def existingTag = sh(
+                        script: "git tag -l 'v*.*.*' --points-at HEAD | head -1",
+                        returnStdout: true
+                    ).trim()
+
+                    if (existingTag) {
+                        // This commit was already tagged — reuse the existing version
+                        def existingVersion = existingTag.replaceFirst('v', '')
+                        echo "⏭️ HEAD is already tagged as ${existingTag}. Skipping version bump."
+
+                        env.IMAGE_TAG = existingVersion
+                        env.FULL_IMAGE_NAME = "${env.DOCKER_REGISTRY}/${env.DOCKER_NAMESPACE}/${env.IMAGE_NAME}:${existingVersion}"
+                        return
+                    }
+
                     // Find the latest semantic version tag (e.g. v1.2.3)
                     def latestTag = sh(
                         script: "git tag -l 'v*.*.*' --sort=-v:refname | head -1",
