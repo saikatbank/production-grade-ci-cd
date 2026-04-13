@@ -179,10 +179,10 @@ pipeline {
                     // Create an annotated tag
                     sh "git tag -a v${newVersion} -m 'Release v${newVersion} [${bumpType}]'"
 
-                    // Push the tag back to GitHub using PAT
+                    // Push the tag back to GitHub using PAT (stored as "Secret text" credential)
                     // Note: Even public repos require authentication for write operations (push)
-                    withCredentials([usernamePassword(credentialsId: env.GITHUB_CREDENTIALS_ID, usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS')]) {
-                        sh 'git push https://${GIT_USER}:${GIT_PASS}@github.com/${GIT_USER}/production-grade-ci-cd.git v' + newVersion
+                    withCredentials([string(credentialsId: env.GITHUB_CREDENTIALS_ID, variable: 'GIT_TOKEN')]) {
+                        sh 'git push https://x-access-token:${GIT_TOKEN}@github.com/saikatbank/production-grade-ci-cd.git v' + newVersion
                     }
 
                     echo "✅ Tagged and pushed v${newVersion} to GitHub"
