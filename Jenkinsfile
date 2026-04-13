@@ -12,6 +12,10 @@ pipeline {
 
         // Uncomment and replace with your Jenkins credentials ID for the registry
         REGISTRY_CREDENTIALS_ID = 'docker-registry-creds'
+
+        // EC2 Deployment Variables
+        EC2_IP = '54.175.5.180' // Replace with your EC2 public IP
+        EC2_CREDENTIALS_ID = 'app-server-cred' // The ID of the SSH credential in Jenkins
     }
 
     stages {
@@ -101,6 +105,23 @@ pipeline {
 
                 // Placeholder since we are skipping the actual push without real credentials
                 sh "echo 'Pretending to push ${FULL_IMAGE_NAME} to ${DOCKER_REGISTRY}...'"
+            }
+        }
+
+        stage('Deploy to EC2') {
+            steps {
+                echo "Deploying to EC2 instance at ${EC2_IP}..."
+
+                withCredentials([sshUserPrivateKey(credentialsId: env.EC2_CREDENTIALS_ID, keyFileVariable: 'SSH_KEY', usernameVariable: 'EC2_USER')]) {
+                    // Start by making sure our app directory exists
+                    sh 'ssh -i $SSH_KEY -o StrictHostKeyChecking=no $EC2_USER@$EC2_IP "mkdir -p app && touch app/.env"'
+
+                    // Copy the production docker-compose file over
+                    sh 'scp -i $SSH_KEY -o StrictHostKeyChecking=no docker-compose.prod.yml $EC2_USER@$EC2_IP:app/docker-compose.yml'
+
+                    // SSH in, pull the new image, and spin it up!
+                    sh 'ssh -i $SSH_KEY -o StrictHostKeyChecking=no $EC2_USER@$EC2_IP "cd app && export APP_IMAGE=$FULL_IMAGE_NAME && docker compose pull && docker compose up -d"'
+                }
             }
         }
     }
