@@ -1,32 +1,135 @@
 pipeline {
     agent any
 
+    parameters {
+        string(
+            name: 'ROLLBACK_VERSION',
+            defaultValue: '',
+            description: 'Leave empty for a normal build. Enter a version (e.g. 1.2.0) to rollback to that version on EC2.'
+        )
+    }
+
     environment {
-        // Define repository/image details here
-        // As we are using docker hub, so kept DOCKER_REGISTRY=docker.io
-        DOCKER_REGISTRY = 'docker.io' // Replace with your actual registry URL (e.g., xxx.dkr.ecr.region.amazonaws.com)
+        // Docker Hub registry details
+        DOCKER_REGISTRY = 'docker.io'
         DOCKER_NAMESPACE = 'saikatbank'
         IMAGE_NAME = 'fastapi-app'
-        IMAGE_TAG = "${env.BUILD_NUMBER}"
-        FULL_IMAGE_NAME = "${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/${IMAGE_NAME}:${IMAGE_TAG}"
 
-        // Uncomment and replace with your Jenkins credentials ID for the registry
+        // Jenkins Credentials IDs
         REGISTRY_CREDENTIALS_ID = 'docker-registry-creds'
 
         // EC2 Deployment Variables
-        EC2_IP = '54.175.5.180' // Replace with your EC2 public IP
-        EC2_CREDENTIALS_ID = 'app-server-cred' // The ID of the SSH credential in Jenkins
+        EC2_IP = '54.175.5.180'
+        EC2_CREDENTIALS_ID = 'app-server-cred'
     }
 
     stages {
-        stage('Checkout') {
+
+        // ──────────────────────────────────────────────
+        //  ROLLBACK MODE — Skip straight to deployment
+        // ──────────────────────────────────────────────
+        stage('Rollback Setup') {
+            when {
+                expression { return params.ROLLBACK_VERSION?.trim() }
+            }
             steps {
-                // Checkout source code from SCM (Git)
+                script {
+                    echo "🔁 ROLLBACK MODE — Rolling back to version ${params.ROLLBACK_VERSION}"
+                    env.IMAGE_TAG = params.ROLLBACK_VERSION.trim()
+                    env.FULL_IMAGE_NAME = "${env.DOCKER_REGISTRY}/${env.DOCKER_NAMESPACE}/${env.IMAGE_NAME}:${env.IMAGE_TAG}"
+                }
+            }
+        }
+
+        // ──────────────────────────────────────────────
+        //  NORMAL BUILD FLOW (skipped during rollback)
+        // ──────────────────────────────────────────────
+        stage('Checkout') {
+            when {
+                expression { return !params.ROLLBACK_VERSION?.trim() }
+            }
+            steps {
                 checkout scm
             }
         }
 
+        stage('Version Bump') {
+            when {
+                expression { return !params.ROLLBACK_VERSION?.trim() }
+            }
+            steps {
+                script {
+                    // Fetch all existing tags from origin
+                    sh 'git fetch --tags'
+
+                    // Find the latest semantic version tag (e.g. v1.2.3)
+                    def latestTag = sh(
+                        script: "git tag -l 'v*.*.*' --sort=-v:refname | head -1",
+                        returnStdout: true
+                    ).trim()
+
+                    if (!latestTag) {
+                        latestTag = 'v0.0.0'
+                        echo "No existing version tags found. Starting from v0.0.0"
+                    }
+
+                    echo "Latest tag: ${latestTag}"
+
+                    // Parse the current version components
+                    def version = latestTag.replaceFirst('v', '')
+                    def parts = version.split('\\.')
+                    def major = parts[0].toInteger()
+                    def minor = parts[1].toInteger()
+                    def patch = parts[2].toInteger()
+
+                    // Read the latest commit message to determine the bump type
+                    def commitMsg = sh(
+                        script: 'git log -1 --pretty=%B',
+                        returnStdout: true
+                    ).trim()
+
+                    echo "Last commit: ${commitMsg}"
+
+                    // Determine bump type based on Conventional Commits
+                    def bumpType = 'patch' // safe default
+
+                    if (commitMsg.contains('BREAKING CHANGE') || commitMsg =~ /^\w+!:/) {
+                        bumpType = 'major'
+                        major++; minor = 0; patch = 0
+                    } else if (commitMsg.startsWith('feat:') || commitMsg.startsWith('feat(')) {
+                        bumpType = 'minor'
+                        minor++; patch = 0
+                    } else {
+                        patch++
+                    }
+
+                    def newVersion = "${major}.${minor}.${patch}"
+
+                    echo "📦 Version bump: ${latestTag} → v${newVersion} (${bumpType})"
+
+                    // Set environment variables for downstream stages
+                    env.IMAGE_TAG = newVersion
+                    env.FULL_IMAGE_NAME = "${env.DOCKER_REGISTRY}/${env.DOCKER_NAMESPACE}/${env.IMAGE_NAME}:${newVersion}"
+
+                    // Configure Git identity for the tag commit
+                    sh 'git config user.email "jenkins@ci.local"'
+                    sh 'git config user.name "Jenkins CI"'
+
+                    // Create an annotated tag
+                    sh "git tag -a v${newVersion} -m 'Release v${newVersion} [${bumpType}]'"
+
+                    // Push the tag back to GitHub
+                    sh "git push origin v${newVersion}"
+
+                    echo "✅ Tagged and pushed v${newVersion} to GitHub"
+                }
+            }
+        }
+
         stage('Lint & Format') {
+            when {
+                expression { return !params.ROLLBACK_VERSION?.trim() }
+            }
             agent {
                 docker {
                     image 'python:3.11-slim'
@@ -48,6 +151,9 @@ pipeline {
         }
 
         stage('Unit Tests') {
+            when {
+                expression { return !params.ROLLBACK_VERSION?.trim() }
+            }
             agent {
                 docker {
                     image 'python:3.11-slim'
@@ -78,49 +184,97 @@ pipeline {
         }
 
         stage('Docker Build') {
+            when {
+                expression { return !params.ROLLBACK_VERSION?.trim() }
+            }
             steps {
                 echo "Building Docker image: ${FULL_IMAGE_NAME}"
                 sh "docker build -t ${FULL_IMAGE_NAME} ."
-                // Best practice: tag it as 'latest' as well locally in the build
                 sh "docker tag ${FULL_IMAGE_NAME} ${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/${IMAGE_NAME}:latest"
             }
         }
 
         stage('Docker Push') {
+            when {
+                expression { return !params.ROLLBACK_VERSION?.trim() }
+            }
             steps {
                 echo "Pushing Docker image to the registry..."
-
-                /*
-                 * In a real production setup, you would authenticate to your registry using Jenkins credentials.
-                 * Uncomment and adapt the snippet below based on your registry type.
-                 */
-
                 withCredentials([usernamePassword(credentialsId: env.REGISTRY_CREDENTIALS_ID, passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')]) {
-                    // Use single quotes for the login step to securely evaluate variables inside the shell
                     sh 'echo "$DOCKER_PASS" | docker login "$DOCKER_REGISTRY" -u "$DOCKER_USER" --password-stdin'
                     sh 'docker push "$FULL_IMAGE_NAME"'
                     sh 'docker push "$DOCKER_REGISTRY/$DOCKER_NAMESPACE/$IMAGE_NAME:latest"'
                     sh 'docker logout "$DOCKER_REGISTRY"'
                 }
-
-                // Placeholder since we are skipping the actual push without real credentials
-                sh "echo 'Pretending to push ${FULL_IMAGE_NAME} to ${DOCKER_REGISTRY}...'"
             }
         }
 
+        // ──────────────────────────────────────────────
+        //  DEPLOY (runs for both normal build & rollback)
+        // ──────────────────────────────────────────────
         stage('Deploy to EC2') {
             steps {
-                echo "Deploying to EC2 instance at ${EC2_IP}..."
+                echo "🚀 Deploying ${FULL_IMAGE_NAME} to EC2 at ${EC2_IP}..."
 
                 withCredentials([sshUserPrivateKey(credentialsId: env.EC2_CREDENTIALS_ID, keyFileVariable: 'SSH_KEY', usernameVariable: 'EC2_USER')]) {
-                    // Start by making sure our app directory exists
+
+                    // Step 1: Save the currently running image tag as a rollback breadcrumb
+                    sh '''
+                        ssh -i $SSH_KEY -o StrictHostKeyChecking=no $EC2_USER@$EC2_IP \
+                            "cd app 2>/dev/null && docker compose ps -q web 2>/dev/null && \
+                             docker inspect --format='{{.Config.Image}}' fastapi_web_prod 2>/dev/null > app/.previous_image || echo 'No previous deployment found'"
+                    '''
+
+                    // Step 2: Ensure the app directory exists
                     sh 'ssh -i $SSH_KEY -o StrictHostKeyChecking=no $EC2_USER@$EC2_IP "mkdir -p app && touch app/.env"'
 
-                    // Copy the production docker-compose file over
+                    // Step 3: Copy the production docker-compose file
                     sh 'scp -i $SSH_KEY -o StrictHostKeyChecking=no docker-compose.prod.yml $EC2_USER@$EC2_IP:app/docker-compose.yml'
 
-                    // SSH in, pull the new image, and spin it up!
+                    // Step 4: Pull the new image and deploy
                     sh 'ssh -i $SSH_KEY -o StrictHostKeyChecking=no $EC2_USER@$EC2_IP "cd app && export APP_IMAGE=$FULL_IMAGE_NAME && docker compose pull && docker compose up -d"'
+
+                    // Step 5: Health check — wait for the app to become healthy
+                    script {
+                        def healthy = false
+                        def maxRetries = 6
+                        def waitSeconds = 10
+
+                        for (int i = 1; i <= maxRetries; i++) {
+                            echo "Health check attempt ${i}/${maxRetries}..."
+                            sleep(waitSeconds)
+
+                            def status = sh(
+                                script: "ssh -i \$SSH_KEY -o StrictHostKeyChecking=no \$EC2_USER@\$EC2_IP 'curl -sf http://localhost/health/live'",
+                                returnStatus: true
+                            )
+
+                            if (status == 0) {
+                                healthy = true
+                                echo "✅ Health check passed on attempt ${i}"
+                                break
+                            }
+                            echo "⏳ Health check failed, retrying in ${waitSeconds}s..."
+                        }
+
+                        // Step 6: Auto-rollback if health check failed
+                        if (!healthy) {
+                            echo "❌ Health check failed after ${maxRetries} attempts. Initiating auto-rollback..."
+
+                            def prevImage = sh(
+                                script: "ssh -i \$SSH_KEY -o StrictHostKeyChecking=no \$EC2_USER@\$EC2_IP 'cat app/.previous_image 2>/dev/null'",
+                                returnStdout: true
+                            ).trim()
+
+                            if (prevImage && prevImage != 'No previous deployment found') {
+                                echo "🔁 Rolling back to previous image: ${prevImage}"
+                                sh "ssh -i \$SSH_KEY -o StrictHostKeyChecking=no \$EC2_USER@\$EC2_IP 'cd app && export APP_IMAGE=${prevImage} && docker compose pull && docker compose up -d'"
+                                error("Deployment failed health check. Auto-rolled back to ${prevImage}. Build marked as FAILED.")
+                            } else {
+                                error("Deployment failed health check and no previous image found to rollback to. Manual intervention required!")
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -136,12 +290,10 @@ pipeline {
             cleanWs()
         }
         success {
-            echo "Pipeline completed successfully!"
-            // Here you could send a Slack/Email notification on success
+            echo "✅ Pipeline completed successfully! Version: ${env.IMAGE_TAG}"
         }
         failure {
-            echo "Pipeline failed! Please check Jenkins console logs."
-            // Here you could send a Slack/Email notification on failure
+            echo "❌ Pipeline failed! Please check Jenkins console logs."
         }
     }
 }
