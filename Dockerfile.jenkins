@@ -1,0 +1,19 @@
+# This file exists since Jenkins doesn't have docker CLI installed by default
+FROM jenkins/jenkins:2.558
+
+USER root
+
+# Install the docker CLI and sudo
+RUN apt-get update && \
+    apt-get install -y docker.io sudo && \
+    rm -rf /var/lib/apt/lists/*
+
+# Configure sudo to allow jenkins user to run docker commands as root without a password
+RUN echo "jenkins ALL=(ALL) NOPASSWD: /usr/bin/docker" > /etc/sudoers.d/jenkins && \
+    chmod 0440 /etc/sudoers.d/jenkins
+
+# Create a wrapper script so that typing 'docker' automatically executes 'sudo docker'
+RUN printf '#!/bin/sh\nexec sudo /usr/bin/docker "$@"\n' > /usr/local/bin/docker && \
+    chmod +x /usr/local/bin/docker
+
+USER jenkins
